@@ -69,17 +69,42 @@ module.exports = function(app, db) {
     });
   });
 
+  //Вход пользователя
+  app.post('/user/login', (req, res) => {
+    const collection = db.collection('users');
+    const user = req.body?.user;
+    let userExist = false;
+
+    collection.findOne({ name: user.name }, function (err, item) {
+      if(item != null) {
+        if(item.password === user.password) {
+          res.send({ result: true });
+        } else {
+          res.send({
+            result: false,
+            message: 'Пароль не совпадает',
+            type: MODAL_TYPE.TYPE_ERROR
+          });
+        }
+      } else {
+        res.send({
+          result: false,
+          message: 'Такого пользователя не существует',
+          type: MODAL_TYPE.TYPE_ERROR
+        });
+      }
+    });
+  });
+
   //Регистрация пользователя
   app.post('/user/join', (req, res) => {
     const collection = db.collection('users');
     const user = req.body?.user;
     let userExist = false;
 
-    // Создаётся объект promise
     collection.findOne({ name: user.name }, function (err, item) {
       if(item != null) {
         userExist = true;
-        console.log('1',userExist)
         res.send({
           result: false,
           message: 'Такой пользователь уже существует',
@@ -87,7 +112,6 @@ module.exports = function(app, db) {
         });
       } else {
         collection.insertOne(user, (err) => {
-          console.log('2',userExist)
           if (err) {
             res.send({
               result: false,

@@ -1,70 +1,40 @@
 const { MODAL_TYPE }  = require("../../assets/constants");
-const {log} = require("nodemon/lib/utils");
+const { log } = require("nodemon/lib/utils");
 const ObjectId = require('mongodb').ObjectId;
 
 module.exports = function(app, db) {
+  const getDateRange = () => {
+    let startDay = new Date();
+    let endDay = new Date();
 
-  app.post('/notes/post', (req, res) => {
-    const collection = db.collection('trackers');
-    const note = [
-      {
-        title: 'Оцените свои эмоции',
-        type: 'emotion',
-        countPoint: 10
-      },
-      {
-        title: 'Оцените свою продуктивность',
-        type: 'production',
-        countPoint: 10
-      },
-      {
-        title: 'Оцените своё самочувствие',
-        type: 'myself',
-        countPoint: 10
-      },
-      {
-        title: 'Оцените своё состояние',
-        type: 'quality',
-        countPoint: 10
-      }
-    ];
-    collection.insertMany(note, (err, result) => {
-      if (err) {
-        res.send({ 'error': 'An error has occurred' });
+    startDay.setHours(0);
+    startDay.setMinutes(0);
+    startDay.setSeconds(0);
+
+    endDay.setHours(23);
+    endDay.setMinutes(59);
+    endDay.setSeconds(59);
+
+    return { startDay, endDay };
+  }
+
+  //Проверка на залогированного пользователя
+  app.post('/user/authorized', (req, res) => {
+    const collection = db.collection('users');
+    const name = req.body?.userName;
+
+    collection.findOne({ name: name }, function (err, item) {
+      if(item != null) {
+        res.send({
+          result: true,
+          user: item
+        });
       } else {
-        res.send(result);
-      }
-    });
-
-  });
-
-  app.get('/notes/get', (req, res) => {
-    const collection = db.collection('trackers');
-    // const id = req.params.id;
-    // const details = { '_id': new ObjectId(id) };
-    collection.find().toArray(function(err, item) {
-      if (err) {
-        res.send({'error':'An error has occurred'});
-      } else {
-        res.send(item);
-      }
-    });
-  });
-
-  app.get('/sessions/authorized', (req, res) => {
-    const collection = db.collection('sessions');
-    const userName = req.body.userName;
-    let details;
-
-    if(userName != null) details = { userName };
-    else details = { 'isAuthorized': true };
-
-    collection.findOne(details, function (err, item) {
-      if (err) {
-        res.send({'error': 'An error has occurred'});
-      } else {
-
-        res.send({ isAuthorized: item != null ? item.isAuthorized : false });
+        res.send({
+          result: false,
+          message: 'Такого пользователя не существует',
+          type: MODAL_TYPE.TYPE_ERROR
+        });
       }
     });
   });
@@ -72,13 +42,14 @@ module.exports = function(app, db) {
   //Вход пользователя
   app.post('/user/login', (req, res) => {
     const collection = db.collection('users');
-    const user = req.body?.user;
+    const name = req.body?.name;
+    const password = req.body?.password;
     let userExist = false;
 
-    collection.findOne({ name: user.name }, function (err, item) {
+    collection.findOne({ name: name }, function (err, item) {
       if(item != null) {
-        if(item.password === user.password) {
-          res.send({ result: true });
+        if(item.password === password) {
+          res.send({ result: true, userId: item._id });
         } else {
           res.send({
             result: false,
@@ -115,16 +86,84 @@ module.exports = function(app, db) {
           if (err) {
             res.send({
               result: false,
-              message: 'An error has occurred',
+              message: 'Internal error',
               type: MODAL_TYPE.TYPE_ERROR
             });
           } else {
             res.send({
               result: true,
+              userId: item.id,
               message: 'Поздравляю, регистрация успешно завершена',
               type: MODAL_TYPE.TYPE_INFORMATION
             });
           }
+        });
+      }
+    });
+  });
+
+  //Получение данных трекеров
+  app.post('/trackers/get', (req, res) => {
+    const collection = db.collection('trackers');
+    const reqData = req.body?.submitData;
+    const dateRange = getDateRange();
+
+    collection.find({
+      userId: reqData.userId,
+      dateSend: {
+        $gte: Number(dateRange.startDay),
+        $lt: Number(dateRange.endDay)
+      }
+    }).toArray().then(result => {
+      if(result.length > 0) {
+        res.send({
+          result: true,
+          trackers: result
+        });
+      } else {
+        res.send({
+          result: false,
+          message: 'Не найдена ни одна оценка',
+          type: MODAL_TYPE.TYPE_WARNING
+        });
+      }
+    })
+  });
+
+  //Сохранение данных трекеров для пользователя
+  app.post('/trackers/update', (req, res) => {
+    const collection = db.collection('trackers');
+    const reqData = req.body?.submitData;
+    const dateRange = getDateRange();
+    const trackersLimit = reqData.trackersLimit;
+    delete reqData.trackersLimit;
+
+    collection.find({
+      userId: reqData.userId,
+      dateSend: {
+        $gte: Number(dateRange.startDay),
+        $lt: Number(dateRange.endDay)
+      }
+    }).toArray().then(result => {
+      if(result.length < trackersLimit) {
+        collection.insertOne(reqData, (err) => {
+          if (err) {
+            res.send({
+              result: false,
+              message: 'Internal error',
+              type: MODAL_TYPE.TYPE_ERROR
+            });
+          } else {
+            res.send({
+              result: true,
+            });
+          }
+        });
+      } else {
+        res.send({
+          result: false,
+          message: 'Количество оценок за день достигнуто максимума',
+          type: MODAL_TYPE.TYPE_WARNING
         });
       }
     });

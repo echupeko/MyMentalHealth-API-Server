@@ -3,9 +3,9 @@ const { log } = require("nodemon/lib/utils");
 const ObjectId = require('mongodb').ObjectId;
 
 module.exports = function(app, db) {
-  const getDateRange = () => {
-    let startDay = new Date();
-    let endDay = new Date();
+  const getDateRange = (dateSend) => {
+    let startDay = new Date(dateSend);
+    let endDay = new Date(dateSend);
 
     startDay.setHours(0);
     startDay.setMinutes(0);
@@ -23,7 +23,8 @@ module.exports = function(app, db) {
     const collection = db.collection('users');
     const name = req.body?.userName;
 
-    collection.findOne({ name: name }, function (err, item) {
+    collection.findOne({ name }, function (err, item) {
+      // res.ok вместо result
       if(item != null) {
         res.send({
           result: true,
@@ -106,7 +107,7 @@ module.exports = function(app, db) {
   app.post('/trackers/get', (req, res) => {
     const collection = db.collection('trackers');
     const reqData = req.body?.submitData;
-    const dateRange = getDateRange();
+    const dateRange = getDateRange(reqData.dateSend);
 
     collection.find({
       userId: reqData.userId,

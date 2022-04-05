@@ -3,9 +3,9 @@ const { log } = require("nodemon/lib/utils");
 const ObjectId = require('mongodb').ObjectId;
 
 module.exports = function(app, db) {
-  const getDateRange = (dateSend) => {
-    let startDay = new Date(dateSend);
-    let endDay = new Date(dateSend);
+  const getDateRange = (startDateSend, endDateSend) => {
+    let startDay = new Date(startDateSend);
+    let endDay = new Date(endDateSend);
 
     startDay.setHours(0);
     startDay.setMinutes(0);
@@ -107,7 +107,7 @@ module.exports = function(app, db) {
   app.post('/trackers/get', (req, res) => {
     const collection = db.collection('trackers');
     const reqData = req.body?.submitData;
-    const dateRange = getDateRange(reqData.dateSend);
+    const dateRange = getDateRange(reqData.startDateSend, reqData.endDateSend);
 
     collection.find({
       userId: reqData.userId,
@@ -135,7 +135,7 @@ module.exports = function(app, db) {
   app.post('/trackers/update', (req, res) => {
     const collection = db.collection('trackers');
     const reqData = req.body?.submitData;
-    const dateRange = getDateRange();
+    const dateRange = getDateRange(reqData.dateSend, reqData.dateSend);
     const trackersLimit = reqData.trackersLimit;
     delete reqData.trackersLimit;
 
@@ -147,7 +147,7 @@ module.exports = function(app, db) {
       }
     }).toArray().then(result => {
       if(result.length < trackersLimit) {
-        collection.insertOne(reqData, (err) => {
+        collection.insertOne(reqData.tracker, (err) => {
           if (err) {
             res.send({
               result: false,
